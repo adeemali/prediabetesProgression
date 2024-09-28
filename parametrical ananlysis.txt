@@ -1,0 +1,109 @@
+# parametrical ananlysis on all features
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.impute import SimpleImputer  # For handling missing values
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from google.colab import files
+uploaded = files.upload()
+
+# Load the dataset
+data = pd.read_csv(list(uploaded.keys())[0])
+
+# Selecting input features and target
+X = data[['gender', 'age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'diabetes']]
+y = data['risk_probability'].apply(lambda x: 1 if x >= 50 else 0)  # Assuming 50 as a threshold for binary classification
+
+# Handle missing values using SimpleImputer (replace NaNs with the mean of the column)
+imputer = SimpleImputer(strategy='mean')
+X = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
+
+# Splitting the data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train Logistic Regression model
+LogisticRegression_model = LogisticRegression(max_iter=500)
+LogisticRegression_model.fit(X_train, y_train)
+
+# Parametric Analysis Function with consistent feature names and order
+def parametric_analysis(model, feature_name, feature_range, other_features, feature_order):
+    results = []
+
+    for feature_value in feature_range:
+        # Update the feature being varied
+        features = other_features.copy()
+        features[feature_name] = feature_value
+
+        # Create a DataFrame with the same column order as X_train
+        user_data = pd.DataFrame([features]).reindex(columns=feature_order)
+
+        # Impute missing values in user_data (if any)
+        user_data = pd.DataFrame(imputer.transform(user_data), columns=user_data.columns)
+
+        # Predict risk probability
+        risk_prob = model.predict_proba(user_data)[:, 1][0] * 100
+        results.append({
+            feature_name: feature_value,
+            'risk_probability': risk_prob
+        })
+
+    result_df = pd.DataFrame(results)
+    return result_df
+
+# Get the feature order from X_train (the features the model was trained on)
+feature_order = X_train.columns
+
+# Define constant features (average/typical values for others)
+constant_features = {
+    'gender': 1,  # Male
+    'hypertension': 0,
+    'heart_disease': 0,
+    'bmi': 25.0,
+    'HbA1c_level': X_train['HbA1c_level'].mean(),  # Use mean value from train set
+    'blood_glucose_level': X_train['blood_glucose_level'].mean(),  # Use mean value from train set
+    'diabetes': 0
+}
+
+# Feature ranges for parametric analysis
+feature_ranges = {
+    'age': np.linspace(30, 80, 20),
+    'gender': [0, 1],  # 0: Female, 1: Male
+    'hypertension': [0, 1],  # 0: No, 1: Yes
+    'heart_disease': [0, 1],  # 0: No, 1: Yes
+    'bmi': np.linspace(18.5, 40, 20),  # Typical BMI range
+    'HbA1c_level': np.linspace(4.5, 10.0, 20),  # Range for HbA1c level
+    'blood_glucose_level': np.linspace(70, 200, 20),  # Range for blood glucose level in mg/
+    'diabetes': 0
+}
+
+# Feature ranges for parametric analysis
+feature_ranges = {
+    'age': np.linspace(30, 80, 20),
+    'gender': [0, 1],  # 0: Female, 1: Male
+    'hypertension': [0, 1],  # 0: No, 1: Yes
+    'heart_disease': [0, 1],  # 0: No, 1: Yes
+    'bmi': np.linspace(18.5, 40, 20),  # Typical BMI range
+    'HbA1c_level': np.linspace(4.5, 10.0, 20),  # Range for HbA1c level
+    'blood_glucose_level': np.linspace(70, 200, 20),  # Range for blood glucose level in mg/dL
+    'diabetes': [0, 1]  # 0: No, 1: Yes
+}
+
+# Function to plot the results for each feature
+def plot_parametric_analysis(feature_name, feature_range, model, constant_features, feature_order):
+    analysis_result = parametric_analysis(model, feature_name, feature_range, constant_features, feature_order)
+
+    plt.figure(figsize=(4, 3))
+    sns.lineplot(x=feature_name, y='risk_probability', data=analysis_result)
+    plt.title(f'Parametric Analysis: Effect of {feature_name.capitalize()} on Risk Probability')
+    plt.xlabel(feature_name.capitalize())
+    plt.ylabel('Predicted Risk Probability (%)')
+    plt.grid(True)
+    plt.show()
+
+# Perform parametric analysis for each feature
+for feature_name, feature_range in feature_ranges.items():
+    print(f"Performing parametric analysis for {feature_name}...")
+    plot_parametric_analysis(feature_name, feature_range, LogisticRegression_model, constant_features, feature_order)

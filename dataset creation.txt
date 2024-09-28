@@ -1,0 +1,96 @@
+# to create dataset for progression and it considers all except the smoking history
+
+# Step 1: Install necessary libraries (you can skip this if you already have them installed)
+# !pip install pandas scikit-learn statsmodels
+
+# Step 2: Import necessary libraries
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import statsmodels.api as sm
+
+# Step 3: Load the dataset (upload your CSV file from your local machine)
+from google.colab import files
+uploaded = files.upload()
+
+# Assuming your dataset is named 'diabetes_prediction_dataset.csv'
+# You can replace it with the actual file name if different
+data = pd.read_csv(list(uploaded.keys())[0])
+
+# Step 4: Preprocess the data
+# Handle missing values (drop rows with missing data)
+data = data.dropna()
+
+# Make a copy of the original data (before scaling)
+data_original = data.copy()
+
+# Normalize numerical columns (if needed)
+scaler = StandardScaler()
+data[['bmi', 'age', 'HbA1c_level', 'blood_glucose_level']] = scaler.fit_transform(data[['bmi', 'age', 'HbA1c_level', 'blood_glucose_level']])
+
+# Step 5: Define features (X) and target (y)
+X = data[['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level', 'blood_glucose_level', 'gender']]  # Features
+y = data['diabetes']  # Target variable
+
+# Step 6: Split the data into training and testing sets (80% training, 20% testing)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Step 7: Train the logistic regression model
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Step 8: View the coefficients and intercept
+intercept = model.intercept_
+coefficients = model.coef_
+
+print(f'Intercept: {intercept}')
+print(f'Coefficients: {coefficients}')
+
+# Step 9: Make predictions on the test data
+y_pred = model.predict(X_test)
+y_prob = model.predict_proba(X_test)[:, 1]  # Probabilities of the positive class (diabetes = 1)
+
+# Step 10: Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+
+print(f'Accuracy: {accuracy}')
+print(f'Confusion Matrix:\n{conf_matrix}')
+print(f'Classification Report:\n{classification_report(y_test, y_pred)}')
+
+# Step 11: Optional - Detailed model summary using statsmodels
+X_train_const = sm.add_constant(X_train)  # Add intercept
+logit_model = sm.Logit(y_train, X_train_const)
+result = logit_model.fit()
+
+# Print the model summary
+print(result.summary())
+
+# Step 12: Create a column for predicted risk progression and probability
+# Risk progression (log-odds)
+data_original['risk_progression'] = intercept[0] + (
+    coefficients[0][0] * data['age'] +
+    coefficients[0][1] * data['hypertension'] +
+    coefficients[0][2] * data['heart_disease'] +
+    coefficients[0][3] * data['bmi'] +
+    coefficients[0][4] * data['HbA1c_level'] +
+    coefficients[0][5] * data['blood_glucose_level'] +
+    coefficients[0][6] * data['gender']
+)
+
+# Logistic transformation to get risk probability
+data_original['risk_probability'] = (1 / (1 + np.exp(-data_original['risk_progression']))) * 100
+
+# Display the updated data with the new columns
+data_original[['age', 'hypertension', 'heart_disease', 'bmi', 'HbA1c_level','blood_glucose_level', 'risk_progression', 'risk_probability']]
+
+# Save the data_original DataFrame to a CSV file
+data_original.to_csv('predicted_diabetes_risk.csv', index=False)
+
+# For Google Colab, use this to initiate a download
+from google.colab import files
+files.download('predicted_diabetes_risk.csv')
+
